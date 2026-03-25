@@ -6,44 +6,101 @@ $action    = $_GET['action'] ?? 'list';
 $id        = isset($_GET['id'])        ? (int)$_GET['id']        : null;
 $catFilter = isset($_GET['categoria']) ? (int)$_GET['categoria'] : null;
 
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtInsert = $pdo->prepare(
+    "INSERT INTO PRODOTTO (nome, unitaMisura, tipoProdotto, descrizione, immagineUrl, idCategoria)
+     VALUES (?, ?, ?, ?, ?, ?)"
+);
+$stmtUpdate = $pdo->prepare(
+    "UPDATE PRODOTTO
+     SET nome=?, unitaMisura=?, tipoProdotto=?, descrizione=?, immagineUrl=?, idCategoria=?
+     WHERE idProdotto=?"
+);
+$stmtDelete = $pdo->prepare(
+    "DELETE FROM PRODOTTO WHERE idProdotto=?"
+);
+$stmtFind   = $pdo->prepare(
+    "SELECT * FROM PRODOTTO WHERE idProdotto=?"
+);
+
+// ── POST: create / edit ──────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nome   = trim($_POST['nome'] ?? '');
-    $unita  = $_POST['unitaMisura']  ?? '';
-    $tipo   = $_POST['tipoProdotto'] ?? '';
-    $idCat  = !empty($_POST['idCategoria']) ? (int)$_POST['idCategoria'] : null;
-    $desc   = trim($_POST['descrizione'] ?? '') ?: null;
-    if (!$nome || !$unita || !$tipo) { flash('error','Compila tutti i campi obbligatori.'); redirect("prodotti.php?action=$action".($id?"&id=$id":'')); }
-    if ($action === 'create') {
-        $pdo->prepare("INSERT INTO PRODOTTO (nome,unitaMisura,tipoProdotto,descrizione,idCategoria) VALUES (?,?,?,?,?)")->execute([$nome,$unita,$tipo,$desc,$idCat]);
-        flash('success',"Prodotto «$nome» creato."); redirect('prodotti.php');
+    $nome    = trim($_POST['nome'] ?? '');
+    $unita   = $_POST['unitaMisura']  ?? '';
+    $tipo    = $_POST['tipoProdotto'] ?? '';
+    $idCat   = !empty($_POST['idCategoria']) ? (int)$_POST['idCategoria'] : null;
+    $desc    = trim($_POST['descrizione']  ?? '') ?: null;
+    $imgUrl  = trim($_POST['immagineUrl']  ?? '') ?: null;
+
+    if (!$nome || !$unita || !$tipo) {
+        flash('error', 'Compila tutti i campi obbligatori.');
+        redirect("prodotti.php?action=$action" . ($id ? "&id=$id" : ''));
     }
-    if ($action === 'edit' && $id) {
-        $pdo->prepare("UPDATE PRODOTTO SET nome=?,unitaMisura=?,tipoProdotto=?,descrizione=?,idCategoria=? WHERE idProdotto=?")->execute([$nome,$unita,$tipo,$desc,$idCat,$id]);
-        flash('success','Prodotto aggiornato.'); redirect('prodotti.php');
+
+    $pdo->beginTransaction();
+    try {
+        if ($action === 'create') {
+            $stmtInsert->execute([$nome, $unita, $tipo, $desc, $imgUrl, $idCat]);
+            $pdo->commit();
+            flash('success', "Prodotto creato con successo.");
+            redirect('prodotti.php');
+        }
+        if ($action === 'edit' && $id) {
+            $stmtUpdate->execute([$nome, $unita, $tipo, $desc, $imgUrl, $idCat, $id]);
+            $pdo->commit();
+            flash('success', 'Prodotto aggiornato.');
+            redirect('prodotti.php');
+        }
+        $pdo->rollBack();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        flash('error', 'Errore: ' . $e->getMessage());
+        redirect("prodotti.php?action=$action" . ($id ? "&id=$id" : ''));
     }
 }
+
+// ── DELETE ───────────────────────────────────────────────────
 if ($action === 'delete' && $id) {
-    try { $pdo->prepare("DELETE FROM PRODOTTO WHERE idProdotto=?")->execute([$id]); flash('success','Prodotto eliminato.');
-    } catch (PDOException) { flash('error','Impossibile eliminare: ha dati associati.'); }
+    $pdo->beginTransaction();
+    try {
+        $stmtDelete->execute([$id]);
+        $pdo->commit();
+        flash('success', 'Prodotto eliminato.');
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        flash('error', 'Impossibile eliminare: ha dati associati.');
+    }
     redirect('prodotti.php');
 }
+
+// ── FETCH FOR EDIT ───────────────────────────────────────────
 $row = null;
 if ($action === 'edit' && $id) {
-    $s = $pdo->prepare("SELECT * FROM PRODOTTO WHERE idProdotto=?"); $s->execute([$id]); $row = $s->fetch();
-    if (!$row) { flash('error','Non trovato.'); redirect('prodotti.php'); }
+    $stmtFind->execute([$id]);
+    $row = $stmtFind->fetch();
+    if (!$row) { flash('error', 'Non trovato.'); redirect('prodotti.php'); }
 }
-$categorie = $pdo->query("SELECT * FROM CATEGORIA ORDER BY nomeCategoria")->fetchAll();
 
-// List con filtro categoria
-$sql = "SELECT p.*, c.nomeCategoria,
-               (SELECT COALESCE(SUM(cf.giacenza),0) FROM CONFEZIONE cf JOIN PRODUZIONE pr ON cf.idProduzione=pr.idProduzione WHERE pr.idProdottoProdotto=p.idProdotto) AS totGiacenza
-        FROM PRODOTTO p LEFT JOIN CATEGORIA c ON p.idCategoria=c.idCategoria";
+$stmtCat = $pdo->prepare("SELECT * FROM CATEGORIA ORDER BY nomeCategoria");
+$stmtCat->execute();
+$categorie = $stmtCat->fetchAll();
+
+// ── LIST (con filtro categoria) ───────────────────────────────
+$sql = "
+    SELECT p.*, c.nomeCategoria,
+           (SELECT COALESCE(SUM(cf.giacenza), 0)
+            FROM CONFEZIONE cf
+            JOIN PRODUZIONE pr ON cf.idProduzione = pr.idProduzione
+            WHERE pr.idProdottoProdotto = p.idProdotto) AS totGiacenza
+    FROM PRODOTTO p
+    LEFT JOIN CATEGORIA c ON p.idCategoria = c.idCategoria";
 $params = [];
 if ($catFilter) { $sql .= " WHERE p.idCategoria=?"; $params[] = $catFilter; }
 $sql .= " ORDER BY p.nome";
-$stmt = $pdo->prepare($sql); $stmt->execute($params);
-$prodotti = $stmt->fetchAll();
 
+$stmtList = $pdo->prepare($sql);
+$stmtList->execute($params);
+$prodotti = $stmtList->fetchAll();
 $pageTitle  = match($action){'create'=>'Nuovo Prodotto','edit'=>'Modifica Prodotto',default=>'Prodotti'};
 $breadcrumb = $action!=='list'?[['label'=>'Prodotti','url'=>'prodotti.php'],['label'=>$pageTitle]]:null;
 require_once 'includes/header.php';
@@ -70,11 +127,20 @@ require_once 'includes/header.php';
       <div class="empty-state"><i class="fa-solid fa-seedling"></i><p>Nessun prodotto trovato.</p></div>
     <?php else: ?>
     <table class="ag-table table mb-0">
-      <thead><tr><th>#</th><th>Nome</th><th>Tipo</th><th>Unità</th><th>Categoria</th><th>Stock Confezioni</th><th>Descrizione</th><th class="text-end">Azioni</th></tr></thead>
+      <thead><tr><th>#</th><th>Img</th><th>Nome</th><th>Tipo</th><th>Unità</th><th>Categoria</th><th>Stock Confezioni</th><th>Descrizione</th><th class="text-end">Azioni</th></tr></thead>
       <tbody>
       <?php foreach($prodotti as $p): ?>
       <tr>
         <td class="text-muted"><?= $p['idProdotto'] ?></td>
+        <td>
+          <?php $imgSrc = getProductImage($p['nome'], $p['nomeCategoria'] ?? '', $p['tipoProdotto'], $p['immagineUrl'] ?? null); ?>
+          <img src="<?= h($imgSrc) ?>" alt="<?= h($p['nome']) ?>"
+               style="width:38px;height:38px;object-fit:cover;border-radius:8px;border:1px solid var(--ag-border)"
+               onerror="this.style.display='none'">
+          <?php if (!empty($p['immagineUrl'])): ?>
+            <i class="fa-solid fa-link" style="font-size:.6rem;color:var(--ag-primary);margin-left:2px" title="URL custom"></i>
+          <?php endif; ?>
+        </td>
         <td class="fw-semibold"><?= h($p['nome']) ?></td>
         <td><span class="badge-<?= $p['tipoProdotto'] ?>"><?= ucfirst($p['tipoProdotto']) ?></span></td>
         <td><span class="badge-ok"><?= h($p['unitaMisura']) ?></span></td>
@@ -143,6 +209,21 @@ require_once 'includes/header.php';
         <div class="col-12">
           <label class="form-label">Descrizione</label>
           <textarea name="descrizione" class="form-control" rows="2" placeholder="Descrizione breve del prodotto..."><?= h($row['descrizione']??'') ?></textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">URL Immagine</label>
+          <input type="url" name="immagineUrl" class="form-control"
+                 value="<?= h($row['immagineUrl']??'') ?>"
+                 placeholder="https://esempio.com/immagine.jpg — lascia vuoto per usare l'immagine automatica">
+          <small class="text-muted">
+          </small>
+          <?php if (!empty($row['immagineUrl'])): ?>
+          <div class="mt-2">
+            <img src="<?= h($row['immagineUrl']) ?>" alt="Anteprima"
+                 style="height:80px;border-radius:8px;object-fit:cover;border:1px solid var(--ag-border)"
+                 onerror="this.style.display='none'">
+          </div>
+          <?php endif; ?>
         </div>
       </div>
       <div class="d-flex gap-2 mt-4">

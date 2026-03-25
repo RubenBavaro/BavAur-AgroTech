@@ -32,8 +32,8 @@ $confLowQ = "SELECT c.idConfezione, c.giacenza, c.numeroConfezioni, pp.nome AS p
 $confLow = $pdo->query($confLowQ)->fetchAll();
 
 // Ultime 5 vendite
-$ultVendQ = "SELECT v.idVendita,v.dataVendita,v.totalePagato,cl.nome AS cliente,s.nomeSede,COUNT(d.idDettaglio) AS nRighe
-    FROM VENDITA v JOIN CLIENTE cl ON v.idCliente=cl.idCliente JOIN SEDE s ON v.idSede=s.idSede
+$ultVendQ = "SELECT v.idVendita,v.dataVendita,v.totalePagato,v.totaleCalcolato,cl.nome AS cliente,s.nomeSede,COUNT(d.idDettaglio) AS nRighe
+    FROM V_VENDITA v JOIN CLIENTE cl ON v.idCliente=cl.idCliente JOIN SEDE s ON v.idSede=s.idSede
     LEFT JOIN DETTAGLIO_VENDITA d ON d.idVendita=v.idVendita
     " . ($mySedeId ? "WHERE v.idSede=$mySedeId" : '') . "
     GROUP BY v.idVendita ORDER BY v.dataVendita DESC, v.idVendita DESC LIMIT 5";

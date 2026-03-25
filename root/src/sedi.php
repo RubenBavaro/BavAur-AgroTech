@@ -2,93 +2,170 @@
 require_once 'includes/auth.php';
 $currentPage = 'sedi';
 $basePath    = '';
-$action  = $_GET['action'] ?? 'list';
-$id      = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$action   = $_GET['action'] ?? 'list';
+$id       = isset($_GET['id']) ? (int)$_GET['id'] : null;
 $isSuperA = isSuperAdmin();
 $mySedeId = userSede();
 
 // Sede admin: solo la propria sede, niente create/delete
-if (!$isSuperA && in_array($action, ['create','delete'])) {
-    flash('error','Non hai i permessi per questa operazione.'); redirect('sedi.php');
+if (!$isSuperA && in_array($action, ['create', 'delete'])) {
+    flash('error', 'Non hai i permessi per questa operazione.');
+    redirect('sedi.php');
 }
+
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtInsert      = $pdo->prepare(
+    "INSERT INTO SEDE (nomeSede, indirizzo) VALUES (?, ?)"
+);
+$stmtUpdate      = $pdo->prepare(
+    "UPDATE SEDE SET nomeSede=?, indirizzo=? WHERE idSede=?"
+);
+$stmtDelete      = $pdo->prepare(
+    "DELETE FROM SEDE WHERE idSede=?"
+);
+$stmtFind        = $pdo->prepare(
+    "SELECT * FROM SEDE WHERE idSede=?"
+);
+$stmtFindConf    = $pdo->prepare(
+    "SELECT c.idConfezione, c.numeroConfezioni
+     FROM CONFEZIONE c
+     JOIN PRODUZIONE pr ON c.idProduzione = pr.idProduzione
+     WHERE c.idConfezione=?" . ($mySedeId ? " AND pr.idSede=$mySedeId" : "")
+);
+$stmtUpdateGiac  = $pdo->prepare(
+    "UPDATE CONFEZIONE SET giacenza=? WHERE idConfezione=?"
+);
+$stmtConfezioniSede = $pdo->prepare("
+    SELECT c.*, pp.nome AS prodotto, pp.unitaMisura
+    FROM CONFEZIONE c
+    JOIN PRODUZIONE pr ON c.idProduzione         = pr.idProduzione
+    JOIN PRODOTTO   pp ON pr.idProdottoProdotto   = pp.idProdotto
+    WHERE pr.idSede=?
+    ORDER BY c.giacenza ASC, c.dataConfezionamento DESC
+");
+$stmtAdminSede   = $pdo->prepare(
+    "SELECT nome, email FROM UTENTE WHERE ruolo='sede_admin' AND idSede=? LIMIT 1"
+);
+$stmtList        = $pdo->prepare("
+    SELECT s.*,
+        (SELECT COUNT(*)              FROM PRODUZIONE p  WHERE p.idSede  = s.idSede) AS nProd,
+        (SELECT COUNT(*)              FROM VENDITA    v  WHERE v.idSede  = s.idSede) AS nVend,
+        (SELECT COALESCE(SUM(c.giacenza), 0)
+         FROM CONFEZIONE c
+         JOIN PRODUZIONE pr ON c.idProduzione = pr.idProduzione
+         WHERE pr.idSede = s.idSede) AS totGiac
+    FROM SEDE s
+    " . ($mySedeId ? "WHERE s.idSede=$mySedeId" : "") . "
+    ORDER BY s.nomeSede
+");
 
 // ── AGGIORNA GIACENZA (POST da pagina manage) ─────────────────
 if ($action === 'giacenza' && $id && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nuovaGiac = (int)($_POST['giacenza'] ?? -1);
-    $sedeBack  = (int)($_POST['idSede'] ?? 0);
-    $chk = $pdo->prepare("
-        SELECT c.idConfezione, c.numeroConfezioni
-        FROM CONFEZIONE c
-        JOIN PRODUZIONE pr ON c.idProduzione = pr.idProduzione
-        WHERE c.idConfezione = ?" . ($mySedeId ? " AND pr.idSede = $mySedeId" : ""));
-    $chk->execute([$id]); $conf = $chk->fetch();
-    if (!$conf) {
-        flash('error','Confezione non trovata o non autorizzata.');
-    } elseif ($nuovaGiac < 0 || $nuovaGiac > $conf['numeroConfezioni']) {
-        flash('error',"La giacenza deve essere tra 0 e {$conf['numeroConfezioni']}.");
-    } else {
-        $pdo->prepare("UPDATE CONFEZIONE SET giacenza=? WHERE idConfezione=?")->execute([$nuovaGiac,$id]);
-        flash('success','Giacenza aggiornata.');
+    $sedeBack  = (int)($_POST['idSede']   ?? 0);
+
+    $pdo->beginTransaction();
+    try {
+        $stmtFindConf->execute([$id]);
+        $conf = $stmtFindConf->fetch();
+        if (!$conf) {
+            $pdo->rollBack();
+            flash('error', 'Confezione non trovata o non autorizzata.');
+        } elseif ($nuovaGiac < 0 || $nuovaGiac > $conf['numeroConfezioni']) {
+            $pdo->rollBack();
+            flash('error', "La giacenza deve essere tra 0 e {$conf['numeroConfezioni']}.");
+        } else {
+            $stmtUpdateGiac->execute([$nuovaGiac, $id]);
+            $pdo->commit();
+            flash('success', 'Giacenza aggiornata.');
+        }
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        flash('error', 'Errore: ' . $e->getMessage());
     }
     redirect("sedi.php?action=manage&id=$sedeBack");
 }
 
-// ── EDIT / CREATE SEDE ────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['create','edit'])) {
-    $nomeSede  = trim($_POST['nomeSede'] ?? '');
+// ── CREATE / EDIT ─────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['create', 'edit'])) {
+    $nomeSede  = trim($_POST['nomeSede']  ?? '');
     $indirizzo = trim($_POST['indirizzo'] ?? '') ?: null;
-    if (!$nomeSede) { flash('error','Il nome è obbligatorio.'); redirect("sedi.php?action=$action".($id?"&id=$id":'')); }
-    if ($action === 'create') {
-        $pdo->prepare("INSERT INTO SEDE (nomeSede,indirizzo) VALUES (?,?)")->execute([$nomeSede,$indirizzo]);
-        flash('success',"Sede «$nomeSede» creata."); redirect('sedi.php');
+
+    if (!$nomeSede) {
+        flash('error', 'Il nome è obbligatorio.');
+        redirect("sedi.php?action=$action" . ($id ? "&id=$id" : ''));
     }
-    if ($action === 'edit' && $id) {
-        if ($mySedeId && $mySedeId !== $id) { flash('error','Non puoi modificare questa sede.'); redirect('sedi.php'); }
-        $pdo->prepare("UPDATE SEDE SET nomeSede=?,indirizzo=? WHERE idSede=?")->execute([$nomeSede,$indirizzo,$id]);
-        flash('success','Sede aggiornata.'); redirect('sedi.php');
+
+    $pdo->beginTransaction();
+    try {
+        if ($action === 'create') {
+            $stmtInsert->execute([$nomeSede, $indirizzo]);
+            $pdo->commit();
+            flash('success', "Sede «$nomeSede» creata.");
+            redirect('sedi.php');
+        }
+        if ($action === 'edit' && $id) {
+            if ($mySedeId && $mySedeId !== $id) {
+                $pdo->rollBack();
+                flash('error', 'Non puoi modificare questa sede.');
+                redirect('sedi.php');
+            }
+            $stmtUpdate->execute([$nomeSede, $indirizzo, $id]);
+            $pdo->commit();
+            flash('success', 'Sede aggiornata.');
+            redirect('sedi.php');
+        }
+        $pdo->rollBack();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        flash('error', 'Errore: ' . $e->getMessage());
+        redirect("sedi.php?action=$action" . ($id ? "&id=$id" : ''));
     }
 }
 
 // ── DELETE ────────────────────────────────────────────────────
 if ($action === 'delete' && $id && $isSuperA) {
-    try { $pdo->prepare("DELETE FROM SEDE WHERE idSede=?")->execute([$id]); flash('success','Sede eliminata.');
-    } catch (PDOException $e) { flash('error','Impossibile eliminare: ci sono dati associati.'); }
+    $pdo->beginTransaction();
+    try {
+        $stmtDelete->execute([$id]);
+        $pdo->commit();
+        flash('success', 'Sede eliminata.');
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        flash('error', 'Impossibile eliminare: ci sono dati associati.');
+    }
     redirect('sedi.php');
 }
 
 // ── FETCH FOR EDIT ────────────────────────────────────────────
 $row = null;
 if ($action === 'edit' && $id) {
-    $s = $pdo->prepare("SELECT * FROM SEDE WHERE idSede=?"); $s->execute([$id]); $row = $s->fetch();
-    if (!$row) { flash('error','Sede non trovata.'); redirect('sedi.php'); }
-    if ($mySedeId && $mySedeId !== (int)$row['idSede']) { flash('error','Accesso negato.'); redirect('sedi.php'); }
+    $stmtFind->execute([$id]);
+    $row = $stmtFind->fetch();
+    if (!$row) { flash('error', 'Sede non trovata.'); redirect('sedi.php'); }
+    if ($mySedeId && $mySedeId !== (int)$row['idSede']) {
+        flash('error', 'Accesso negato.'); redirect('sedi.php');
+    }
 }
 
 // ── MANAGE: confezioni della sede ─────────────────────────────
-$sedeManage = null; $confezioniSede = [];
+$sedeManage = null;
+$confezioniSede = [];
 if ($action === 'manage' && $id) {
-    if ($mySedeId && $mySedeId !== $id) { flash('error','Accesso negato.'); redirect('sedi.php'); }
-    $sm = $pdo->prepare("SELECT * FROM SEDE WHERE idSede=?"); $sm->execute([$id]); $sedeManage = $sm->fetch();
-    if (!$sedeManage) { flash('error','Sede non trovata.'); redirect('sedi.php'); }
-    $cq = $pdo->prepare("
-        SELECT c.*, pp.nome AS prodotto, pp.unitaMisura
-        FROM CONFEZIONE c
-        JOIN PRODUZIONE pr ON c.idProduzione = pr.idProduzione
-        JOIN PRODOTTO   pp ON pr.idProdottoProdotto = pp.idProdotto
-        WHERE pr.idSede = ?
-        ORDER BY c.giacenza ASC, c.dataConfezionamento DESC");
-    $cq->execute([$id]); $confezioniSede = $cq->fetchAll();
+    if ($mySedeId && $mySedeId !== $id) {
+        flash('error', 'Accesso negato.'); redirect('sedi.php');
+    }
+    $stmtFind->execute([$id]);
+    $sedeManage = $stmtFind->fetch();
+    if (!$sedeManage) { flash('error', 'Sede non trovata.'); redirect('sedi.php'); }
+
+    $stmtConfezioniSede->execute([$id]);
+    $confezioniSede = $stmtConfezioniSede->fetchAll();
 }
 
 // ── LIST ──────────────────────────────────────────────────────
-$sedeWhere = $mySedeId ? "WHERE s.idSede=$mySedeId" : '';
-$sedi = $pdo->query("
-    SELECT s.*,
-        (SELECT COUNT(*) FROM PRODUZIONE p WHERE p.idSede=s.idSede) AS nProd,
-        (SELECT COUNT(*) FROM VENDITA    v WHERE v.idSede=s.idSede) AS nVend,
-        (SELECT COALESCE(SUM(c.giacenza),0) FROM CONFEZIONE c JOIN PRODUZIONE pr ON c.idProduzione=pr.idProduzione WHERE pr.idSede=s.idSede) AS totGiac
-    FROM SEDE s $sedeWhere ORDER BY s.nomeSede")->fetchAll();
-
+$stmtList->execute();
+$sedi = $stmtList->fetchAll();
 $pageTitle  = match($action) {
     'create' => 'Nuova Sede', 'edit' => 'Modifica Sede',
     'manage' => 'Gestione: ' . ($sedeManage['nomeSede'] ?? ''), default => 'Sedi' };
@@ -110,18 +187,20 @@ require_once 'includes/header.php';
       <div class="empty-state"><i class="fa-solid fa-location-dot"></i><p>Nessuna sede trovata.</p></div>
     <?php else: ?>
     <table class="ag-table table mb-0">
-      <thead><tr><th>#</th><th>Nome Sede</th><th>Indirizzo</th><th>Admin</th><th>Produzioni</th><th>Vendite</th><th>Stock Totale</th><th class="text-end">Azioni</th></tr></thead>
+      <thead><tr><th>#</th><th>Nome Sede</th><th>Indirizzo</th><th>Admin Sede</th><th>Produzioni</th><th>Vendite</th><th>Stock Totale</th><th class="text-end">Azioni</th></tr></thead>
       <tbody>
-      <?php foreach ($sedi as $s): ?>
+      <?php foreach ($sedi as $s):
+        $stmtAdminSede->execute([$s['idSede']]); $adminSede = $stmtAdminSede->fetch();
+      ?>
       <tr>
         <td class="text-muted"><?= $s['idSede'] ?></td>
         <td class="fw-semibold"><?= h($s['nomeSede']) ?></td>
         <td><small class="text-muted"><?= h($s['indirizzo'] ?? '—') ?></small></td>
         <td>
-          <?php if ($s['admin_email']): ?>
-            <span class="badge-ok" style="font-size:.72rem"><i class="fa-solid fa-shield-halved me-1"></i><?= h($s['admin_email']) ?></span>
+          <?php if ($adminSede): ?>
+            <span class="badge-ok" style="font-size:.72rem"><i class="fa-solid fa-shield-halved me-1"></i><?= h($adminSede['email']) ?></span>
           <?php else: ?>
-            <span class="badge-low" style="font-size:.72rem">Non configurata</span>
+            <span class="badge-low" style="font-size:.72rem">Nessun admin</span>
           <?php endif; ?>
         </td>
         <td><span class="badge-ok"><?= $s['nProd'] ?></span></td>
@@ -155,9 +234,12 @@ require_once 'includes/header.php';
       <div class="p-4">
         <div class="fw-bold mb-1" style="font-size:1.1rem"><?= h($sedeManage['nomeSede']) ?></div>
         <div class="text-muted mb-3" style="font-size:.85rem"><?= h($sedeManage['indirizzo'] ?? '—') ?></div>
-        <?php if ($sedeManage['admin_email']): ?>
+        <?php
+          $stmtAdminSede->execute([$sedeManage['idSede']]); $admSede = $stmtAdminSede->fetch();
+        ?>
+        <?php if ($admSede): ?>
           <div class="badge-ok" style="font-size:.78rem;display:inline-flex;gap:6px;align-items:center">
-            <i class="fa-solid fa-shield-halved"></i><?= h($sedeManage['admin_email']) ?>
+            <i class="fa-solid fa-shield-halved"></i><?= h($admSede['email']) ?>
           </div>
         <?php else: ?>
           <div class="badge-low" style="font-size:.78rem;display:inline-flex;gap:6px">
@@ -279,11 +361,14 @@ require_once 'includes/header.php';
         </div>
       </div>
 
-      <?php if ($action === 'edit' && !empty($row['admin_email'])): ?>
+      <?php
+        $stmtAdminSede->execute([$id]); $admEdit = $id ? $stmtAdminSede->fetch() : null;
+      ?>
+      <?php if ($admEdit): ?>
       <div class="mt-4 p-3" style="background:var(--ag-pale);border-radius:12px;border:1px solid var(--ag-border)">
         <div style="font-size:.85rem"><i class="fa-solid fa-shield-halved me-1" style="color:var(--ag-primary)"></i>
-          <strong>Admin configurato:</strong> <?= h($row['admin_email']) ?><br>
-          <small class="text-muted">Per cambiare la password admin aggiorna <code>admin_password_hash</code> direttamente via phpMyAdmin con un hash bcrypt.</small>
+          <strong>Admin sede:</strong> <?= h($admEdit['nome']) ?> — <code><?= h($admEdit['email']) ?></code><br>
+          <small class="text-muted">Per cambiare l'admin o la password, modifica il record in UTENTE (ruolo='sede_admin', idSede=<?= $id ?>).</small>
         </div>
       </div>
       <?php endif; ?>

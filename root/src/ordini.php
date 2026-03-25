@@ -9,32 +9,41 @@ if (!isset($_SESSION['user']) || $_SESSION['user']['ruolo'] !== 'cliente') {
 $userId   = $_SESSION['user']['idUtente'];
 $userName = $_SESSION['user']['nome'];
 
-// Svuota il carrello se c'è un ordine appena confermato (lo facciamo via JS)
 $lastOrder = $_SESSION['last_order'] ?? null;
 unset($_SESSION['last_order']);
 
 $flash = null;
 if (isset($_SESSION['flash'])) { $flash = $_SESSION['flash']; unset($_SESSION['flash']); }
 
-// Trova il cliente anagrafico di questo utente
-$stmtCli = $pdo->prepare("SELECT idCliente FROM CLIENTE WHERE contatti LIKE ?");
-$stmtCli->execute(['%utente:'.$userId.'%']);
-$cliRow   = $stmtCli->fetch();
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtFindCli = $pdo->prepare(
+    "SELECT idCliente FROM CLIENTE WHERE idUtente=?"
+);
+$stmtOrdini  = $pdo->prepare("
+    SELECT v.*, s.nomeSede,
+           COUNT(d.idDettaglio) AS nRighe
+    FROM V_VENDITA v
+    JOIN SEDE s ON v.idSede = s.idSede
+    LEFT JOIN DETTAGLIO_VENDITA d ON d.idVendita = v.idVendita
+    WHERE v.idCliente=?
+    GROUP BY v.idVendita
+    ORDER BY v.dataVendita DESC, v.idVendita DESC
+");
+$stmtDets    = $pdo->prepare("
+    SELECT idDettaglio, quantita, prezzoUnitario, omaggio,
+           nomeProdotto AS prodotto, tipoProdotto, unitaMisura
+    FROM V_DETTAGLIO WHERE idVendita=?
+");
+
+// Trova il CLIENTE collegato (relazione REGISTRA)
+$stmtFindCli->execute([$userId]);
+$cliRow    = $stmtFindCli->fetch();
 $idCliente = $cliRow['idCliente'] ?? null;
 
 $ordini = [];
 if ($idCliente) {
-    $ordini = $pdo->prepare("
-        SELECT v.*, s.nomeSede,
-               COUNT(d.idDettaglio) AS nRighe
-        FROM VENDITA v
-        JOIN SEDE s ON v.idSede = s.idSede
-        LEFT JOIN DETTAGLIO_VENDITA d ON d.idVendita = v.idVendita
-        WHERE v.idCliente = ?
-        GROUP BY v.idVendita
-        ORDER BY v.dataVendita DESC, v.idVendita DESC");
-    $ordini->execute([$idCliente]);
-    $ordini = $ordini->fetchAll();
+    $stmtOrdini->execute([$idCliente]);
+    $ordini = $stmtOrdini->fetchAll();
 }
 ?>
 <!DOCTYPE html>
@@ -123,14 +132,8 @@ if ($idCliente) {
     </div>
     <div style="padding:8px 0">
       <?php foreach ($ordini as $i => $o):
-        // Dettagli ordine
-        $dets = $pdo->prepare("
-            SELECT dv.*, p.nome AS prodotto, p.tipoProdotto, p.unitaMisura
-            FROM DETTAGLIO_VENDITA dv
-            JOIN PRODOTTO p ON dv.idProdotto = p.idProdotto
-            WHERE dv.idVendita = ?");
-        $dets->execute([$o['idVendita']]);
-        $dettagli = $dets->fetchAll();
+        $stmtDets->execute([$o['idVendita']]);
+        $dettagli = $stmtDets->fetchAll();
       ?>
       <div style="padding:20px 24px;border-bottom:1px solid var(--ag-border);<?= $i===0?'':'margin-top:4px' ?>">
         <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">

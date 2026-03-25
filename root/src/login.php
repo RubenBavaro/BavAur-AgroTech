@@ -8,7 +8,18 @@ if (isLoggedIn()) {
 }
 
 $error = '';
-$mode  = $_POST['mode'] ?? 'user'; // 'user' o 'sede'
+$mode  = $_POST['mode'] ?? 'user';
+
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtLoginSede  = $pdo->prepare(
+    "SELECT * FROM UTENTE WHERE email=? AND ruolo='sede_admin' LIMIT 1"
+);
+$stmtLoginUtente = $pdo->prepare(
+    "SELECT * FROM UTENTE WHERE email=? LIMIT 1"
+);
+$stmtFetchSede   = $pdo->prepare(
+    "SELECT * FROM SEDE WHERE idSede=?"
+);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
@@ -19,15 +30,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Inserisci email e password.';
     } elseif ($mode === 'sede') {
         // ── Login amministratore sede ────────────────────────
-        $stmt = $pdo->prepare("SELECT * FROM UTENTE WHERE email=? AND ruolo='sede_admin' LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $stmtLoginSede->execute([$email]);
+        $user = $stmtLoginSede->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            // Carica i dati della sede
-            $sede = $pdo->prepare("SELECT * FROM SEDE WHERE idSede=?");
-            $sede->execute([$user['idSede']]);
-            $sedeRow = $sede->fetch();
+            $stmtFetchSede->execute([$user['idSede']]);
+            $sedeRow = $stmtFetchSede->fetch();
 
             $_SESSION['user'] = [
                 'idUtente' => $user['idUtente'],
@@ -45,9 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } else {
         // ── Login utente normale / superadmin ────────────────
-        $stmt = $pdo->prepare("SELECT * FROM UTENTE WHERE email=? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+        $stmtLoginUtente->execute([$email]);
+        $user = $stmtLoginUtente->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
             $_SESSION['user'] = [
@@ -57,7 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'ruolo'    => $user['ruolo'],
                 'idSede'   => $user['idSede'],
             ];
-            // Clienti → homepage
             if ($user['ruolo'] === 'cliente') {
                 redirect('homepage.php');
             }
@@ -161,7 +167,7 @@ $flash = getFlash();
           <!-- Sede admin hint -->
           <div id="sedeHint" class="mb-3 p-3 d-none" style="background:var(--ag-pale);border-radius:10px;border:1px solid var(--ag-border);font-size:.82rem;color:var(--ag-primary)">
             <i class="fa-solid fa-circle-info me-1"></i>
-            Le credenziali dell'amministratore sede vengono impostate dall'amministratore di sistema via phpMyAdmin.
+            Le credenziali dell'amministratore sede sono in UTENTE (ruolo='sede_admin'). Per crearne uno nuovo, inserisci un record in UTENTE con il campo idSede valorizzato.
           </div>
 
           <button type="submit" class="btn-ag w-100" style="justify-content:center;padding:12px">

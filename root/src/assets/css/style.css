@@ -24,6 +24,7 @@
   --ag-sidebar-bg:  linear-gradient(180deg,#1B4332 0%,#152d23 100%);
   --ag-nav-active:  #2D6A4F;
   --ag-input-bg:    #FFFFFF;
+  --ag-warning-text:#b45309;
   --sidebar-w:      260px;
 }
 
@@ -46,6 +47,7 @@
   --ag-sidebar-bg:  linear-gradient(180deg,#0D1F17 0%,#091710 100%);
   --ag-nav-active:  #1B4332;
   --ag-input-bg:    #1E3B2B;
+  --ag-warning-text:#fbbf24;
 }
 
 /* ── Base ─────────────────────────────────────────────────── */
@@ -172,6 +174,8 @@ a:hover { color: var(--ag-medium); }
 .role-superadmin { background: #fef3e2; color: #92400e; }
 .role-sede_admin  { background: var(--ag-pale); color: var(--ag-primary); }
 .role-cliente     { background: #dbeafe; color: #1d4ed8; }
+[data-theme="dark"] .role-superadmin { background: #3d2500; color: #fbbf24; }
+[data-theme="dark"] .role-cliente    { background: #1e2d4d; color: #93c5fd; }
 
 /* Topbar date */
 .topbar-date { font-size: .82rem; color: var(--ag-text-muted); white-space: nowrap; }
@@ -199,6 +203,9 @@ a:hover { color: var(--ag-medium); }
 .stat-icon.teal   { background: #d0f0e8; color: #0a7a5c; }
 .stat-icon.orange { background: #fef3e2; color: #d97706; }
 .stat-icon.blue   { background: #dbeafe; color: #2563eb; }
+[data-theme="dark"] .stat-icon.teal   { background: #0a3d2e; color: #6ee7b7; }
+[data-theme="dark"] .stat-icon.orange { background: #3d2500; color: #fbbf24; }
+[data-theme="dark"] .stat-icon.blue   { background: #1e2d4d; color: #93c5fd; }
 .stat-value { font-size: 1.9rem; font-weight: 700; color: var(--ag-text); line-height: 1.1; letter-spacing: -.5px; }
 .stat-label { font-size: .82rem; color: var(--ag-text-muted); font-weight: 500; margin-top: 3px; }
 
@@ -223,6 +230,12 @@ a:hover { color: var(--ag-medium); }
 .badge-low   { background: #fff7ed; color: #c2410c; font-weight: 600; border-radius: 8px; padding: 4px 10px; font-size: .75rem; }
 .badge-zero  { background: #fee2e2; color: #dc2626; font-weight: 600; border-radius: 8px; padding: 4px 10px; font-size: .75rem; }
 
+[data-theme="dark"] .badge-fresco   { background: #0a3d2e; color: #6ee7b7; }
+[data-theme="dark"] .badge-lavorato { background: #3d2500; color: #fbbf24; }
+[data-theme="dark"] .badge-omaggio  { background: #3d0e0e; color: #fca5a5; }
+[data-theme="dark"] .badge-low      { background: #3d1f00; color: #fb923c; }
+[data-theme="dark"] .badge-zero     { background: #3d0e0e; color: #f87171; }
+
 /* ── BUTTONS ─────────────────────────────────────────────── */
 .btn-ag { background: var(--ag-primary); color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-weight: 600; font-size: .875rem; transition: all .2s; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
 .btn-ag:hover { background: var(--ag-dark); color: #fff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(27,67,50,.25); }
@@ -235,6 +248,10 @@ a:hover { color: var(--ag-medium); }
 .btn-edit-sm:hover { background: #2563eb; color: #fff; }
 .btn-view-sm { background: var(--ag-pale); border: none; color: var(--ag-primary); border-radius: 8px; padding: 5px 10px; font-size: .8rem; transition: all .2s; cursor: pointer; }
 .btn-view-sm:hover { background: var(--ag-primary); color: #fff; }
+[data-theme="dark"] .btn-danger-sm { background: #3d0e0e; color: #f87171; }
+[data-theme="dark"] .btn-danger-sm:hover { background: #dc2626; color: #fff; }
+[data-theme="dark"] .btn-edit-sm   { background: #1e2d4d; color: #93c5fd; }
+[data-theme="dark"] .btn-edit-sm:hover   { background: #2563eb; color: #fff; }
 
 /* ── FORMS ───────────────────────────────────────────────── */
 .ag-form-card { background: var(--ag-surface); border: 1px solid var(--ag-border); border-radius: 16px; box-shadow: var(--ag-shadow); max-width: 860px; transition: background .3s; }
@@ -255,6 +272,43 @@ a:hover { color: var(--ag-medium); }
   border-color: var(--ag-medium); box-shadow: 0 0 0 3px rgba(64,145,108,.15); outline: none;
 }
 textarea.form-control { resize: vertical; min-height: 90px; }
+
+/* ── DARK MODE — Form controls & Bootstrap overrides ─────── */
+/* Select options inherit OS theme; force legibility explicitly */
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .form-control::placeholder {
+  color: var(--ag-text);
+  background-color: var(--ag-input-bg);
+  border-color: var(--ag-border);
+}
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus {
+  background-color: var(--ag-input-bg);
+  color: var(--ag-text);
+}
+/* Force select option list legibility (Firefox + Chrome on Linux) */
+[data-theme="dark"] .form-select option {
+  background-color: #1E3B2B;
+  color: #D8F3DC;
+}
+/* Bootstrap table overrides for dark mode */
+[data-theme="dark"] .table { color: var(--ag-text); }
+[data-theme="dark"] .table > :not(caption) > * > * { background-color: transparent; color: var(--ag-text); border-color: var(--ag-border); }
+/* Bootstrap breadcrumb */
+[data-theme="dark"] .breadcrumb-item + .breadcrumb-item::before { color: var(--ag-text-muted); }
+/* Bootstrap form-check */
+[data-theme="dark"] .form-check-input { background-color: var(--ag-input-bg); border-color: var(--ag-border); }
+[data-theme="dark"] .form-check-input:checked { background-color: var(--ag-primary); border-color: var(--ag-primary); }
+/* Bootstrap alert (generic — covers flash messages using BS classes) */
+[data-theme="dark"] .alert-success { background: #0a3d2e; border-color: #1a5c3a; color: #6ee7b7; }
+/* Bootstrap close button in alerts */
+[data-theme="dark"] .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+/* Code elements */
+[data-theme="dark"] code { background: #1E3B2B; color: #6ee7b7; padding: 2px 6px; border-radius: 4px; }
+/* Inline text with hardcoded colors used in PHP templates */
+[data-theme="dark"] .text-warning { color: #fbbf24 !important; }
+[data-theme="dark"] .text-muted   { color: var(--ag-text-muted) !important; }
 
 /* ── PAGE HEADER ─────────────────────────────────────────── */
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
@@ -295,6 +349,7 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 /* ── ALERTS ──────────────────────────────────────────────── */
 .alert-success { background: var(--ag-pale); border-color: var(--ag-light); color: var(--ag-primary); }
 .alert-danger  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+[data-theme="dark"] .alert-danger  { background: #3d0e0e; border-color: #7f1d1d; color: #fca5a5; }
 
 /* ══════════════════════════════════════════════════════════
    HOMEPAGE / PUBLIC PAGES

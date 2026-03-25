@@ -2,25 +2,66 @@
 require_once 'includes/auth.php';
 $currentPage = 'vendite';
 $basePath    = '';
-$action     = $_GET['action'] ?? 'list';
-$id         = isset($_GET['id'])       ? (int)$_GET['id']       : null;
-$cliFilter  = isset($_GET['cliente'])  ? (int)$_GET['cliente']  : null;
-$mySedeId   = userSede();
+$action    = $_GET['action'] ?? 'list';
+$id        = isset($_GET['id'])      ? (int)$_GET['id']      : null;
+$cliFilter = isset($_GET['cliente']) ? (int)$_GET['cliente'] : null;
+$mySedeId  = userSede();
+
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtGetDets      = $pdo->prepare(
+    "SELECT idConfezione, quantita
+     FROM DETTAGLIO_VENDITA
+     WHERE idVendita=? AND idConfezione IS NOT NULL"
+);
+$stmtRestoreGiac  = $pdo->prepare(
+    "UPDATE CONFEZIONE SET giacenza = giacenza + ? WHERE idConfezione=?"
+);
+$stmtDecGiac      = $pdo->prepare(
+    "UPDATE CONFEZIONE SET giacenza = GREATEST(0, giacenza - ?) WHERE idConfezione=?"
+);
+$stmtDelDets      = $pdo->prepare(
+    "DELETE FROM DETTAGLIO_VENDITA WHERE idVendita=?"
+);
+$stmtDelVendita   = $pdo->prepare(
+    "DELETE FROM VENDITA WHERE idVendita=?"
+);
+$stmtInsVendita   = $pdo->prepare(
+    "INSERT INTO VENDITA (dataVendita, totalePagato, note, idCliente, idSede)
+     VALUES (?, ?, ?, ?, ?)"
+);
+$stmtUpdVendita   = $pdo->prepare(
+    "UPDATE VENDITA
+     SET dataVendita=?, totalePagato=?, note=?, idCliente=?, idSede=?
+     WHERE idVendita=?"
+);
+$stmtInsDettaglio = $pdo->prepare(
+    "INSERT INTO DETTAGLIO_VENDITA
+         (quantita, prezzoUnitario, omaggio, idVendita, idProdotto, idConfezione)
+     VALUES (?, ?, ?, ?, ?, ?)"
+);
 
 // ── DELETE ───────────────────────────────────────────────────
 if ($action === 'delete' && $id) {
-    // Ripristina giacenze prima di eliminare
-    $dets = $pdo->prepare("SELECT idConfezione,quantita FROM DETTAGLIO_VENDITA WHERE idVendita=? AND idConfezione IS NOT NULL");
-    $dets->execute([$id]);
-    foreach ($dets->fetchAll() as $d) {
-        $pdo->prepare("UPDATE CONFEZIONE SET giacenza=giacenza+? WHERE idConfezione=?")->execute([$d['quantita'],$d['idConfezione']]);
+    $pdo->beginTransaction();
+    try {
+        // 1. Ripristina giacenze
+        $stmtGetDets->execute([$id]);
+        foreach ($stmtGetDets->fetchAll() as $d) {
+            $stmtRestoreGiac->execute([$d['quantita'], $d['idConfezione']]);
+        }
+        // 2. Elimina vendita (CASCADE elimina dettagli)
+        $stmtDelVendita->execute([$id]);
+        $pdo->commit();
+        flash('success', 'Vendita eliminata e giacenze ripristinate.');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        flash('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
     }
-    $pdo->prepare("DELETE FROM VENDITA WHERE idVendita=?")->execute([$id]);
-    flash('success','Vendita eliminata e giacenze ripristinate.'); redirect('vendite.php');
+    redirect('vendite.php');
 }
 
-// ── POST CREATE / EDIT ────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['create','edit'])) {
+// ── POST: create / edit ──────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['create', 'edit'])) {
     $dataVend  = $_POST['dataVendita']  ?? '';
     $totPagato = (float)($_POST['totalePagato'] ?? 0);
     $note      = trim($_POST['note'] ?? '') ?: null;
@@ -33,89 +74,155 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action,['create','edit'])
     $omaggi    = $_POST['det_omaggio']    ?? [];
 
     if (!$dataVend || !$idCli || !$idSede || empty(array_filter($prods))) {
-        flash('error','Compila tutti i campi obbligatori e aggiungi almeno un prodotto.');
-        redirect("vendite.php?action=$action".($id?"&id=$id":''));
+        flash('error', 'Compila tutti i campi obbligatori e aggiungi almeno un prodotto.');
+        redirect("vendite.php?action=$action" . ($id ? "&id=$id" : ''));
     }
 
     $pdo->beginTransaction();
     try {
-        $totCalc = 0;
-        $righe   = [];
+        // Costruisci le righe
+        $righe = [];
         foreach ($prods as $i => $pid) {
             if (!$pid) continue;
             $isOmag  = isset($omaggi[$i]) ? 1 : 0;
-            $prezzo  = $isOmag ? 0 : (float)($prices[$i] ?? 0);
+            $prezzo  = $isOmag ? 0.0 : (float)($prices[$i] ?? 0);
             $qty     = (float)($qtys[$i] ?? 1);
-            $totCalc += $prezzo * $qty;
-            $righe[] = ['pid'=>(int)$pid,'qty'=>$qty,'prezzo'=>$prezzo,'omag'=>$isOmag,'conf'=>!empty($confs[$i])?(int)$confs[$i]:null];
+            $conf    = !empty($confs[$i]) ? (int)$confs[$i] : null;
+
+            // Vincolo 3NF applicativo (MySQL #3823 impedisce CHECK su colonne FK):
+            // lavorato → confezione presente, idProdotto NULL (derivabile)
+            // fresco   → confezione assente,  idProdotto NOT NULL
+            if ($conf !== null && (int)$pid === 0) {
+                throw new \InvalidArgumentException("Riga $i: prodotto mancante per articolo lavorato.");
+            }
+
+            $righe[] = [
+                'pid'    => (int)$pid,
+                'qty'    => $qty,
+                'prezzo' => $prezzo,
+                'omag'   => $isOmag,
+                'conf'   => $conf,
+            ];
         }
 
         if ($action === 'edit') {
-            // Ripristina giacenze vecchie
-            $old = $pdo->prepare("SELECT idConfezione,quantita FROM DETTAGLIO_VENDITA WHERE idVendita=? AND idConfezione IS NOT NULL");
-            $old->execute([$id]);
-            foreach ($old->fetchAll() as $o) {
-                $pdo->prepare("UPDATE CONFEZIONE SET giacenza=giacenza+? WHERE idConfezione=?")->execute([$o['quantita'],$o['idConfezione']]);
+            // 1. Ripristina giacenze vecchie, riusa stmtRestoreGiac
+            $stmtGetDets->execute([$id]);
+            foreach ($stmtGetDets->fetchAll() as $o) {
+                $stmtRestoreGiac->execute([$o['quantita'], $o['idConfezione']]);
             }
-            $pdo->prepare("DELETE FROM DETTAGLIO_VENDITA WHERE idVendita=?")->execute([$id]);
-            $pdo->prepare("UPDATE VENDITA SET dataVendita=?,totaleCalcolato=?,totalePagato=?,note=?,idCliente=?,idSede=? WHERE idVendita=?")
-                ->execute([$dataVend,$totCalc,$totPagato,$note,$idCli,$idSede,$id]);
+            // 2. Elimina dettagli vecchi
+            $stmtDelDets->execute([$id]);
+            // 3. Aggiorna testata
+            $stmtUpdVendita->execute([$dataVend, $totPagato, $note, $idCli, $idSede, $id]);
             $vid = $id;
         } else {
-            $pdo->prepare("INSERT INTO VENDITA (dataVendita,totaleCalcolato,totalePagato,note,idCliente,idSede) VALUES (?,?,?,?,?,?)")
-                ->execute([$dataVend,$totCalc,$totPagato,$note,$idCli,$idSede]);
+            // Inserisce nuova vendita
+            $stmtInsVendita->execute([$dataVend, $totPagato, $note, $idCli, $idSede]);
             $vid = $pdo->lastInsertId();
         }
 
+        // 4. Inserisce i nuovi dettagli e scala le giacenze (riusa gli stmt)
         foreach ($righe as $r) {
-            $pdo->prepare("INSERT INTO DETTAGLIO_VENDITA (quantita,prezzoUnitario,omaggio,idVendita,idProdotto,idConfezione) VALUES (?,?,?,?,?,?)")
-                ->execute([$r['qty'],$r['prezzo'],$r['omag'],$vid,$r['pid'],$r['conf']]);
+            // 3NF: lavorati hanno confezione → idProdotto NULL (derivabile)
+            //      freschi non hanno confezione → idProdotto NOT NULL
+            $idProdSave = $r['conf'] ? null : $r['pid'];
+            $stmtInsDettaglio->execute([
+                $r['qty'], $r['prezzo'], $r['omag'],
+                $vid, $idProdSave, $r['conf']
+            ]);
             if ($r['conf'] && !$r['omag']) {
-                // Scala giacenza
-                $pdo->prepare("UPDATE CONFEZIONE SET giacenza=GREATEST(0,giacenza-?) WHERE idConfezione=?")->execute([$r['qty'],$r['conf']]);
+                $stmtDecGiac->execute([$r['qty'], $r['conf']]);
             }
         }
 
         $pdo->commit();
-        flash('success',"Vendita #$vid salvata.");
+        flash('success', "Vendita #$vid salvata.");
         redirect("vendite.php?action=view&id=$vid");
+
     } catch (Throwable $e) {
         $pdo->rollBack();
-        flash('error','Errore: '.$e->getMessage());
-        redirect("vendite.php?action=$action".($id?"&id=$id":''));
+        flash('error', 'Errore: ' . $e->getMessage());
+        redirect("vendite.php?action=$action" . ($id ? "&id=$id" : ''));
     }
 }
 
 // ── FETCH VIEW / EDIT ─────────────────────────────────────────
-$vendita = null; $dettagli = [];
+$vendita = null;
+$dettagli = [];
 if ($action === 'view' && $id) {
-    $s = $pdo->prepare("SELECT v.*,cl.nome AS cliente,cl.nickname,s.nomeSede FROM VENDITA v JOIN CLIENTE cl ON v.idCliente=cl.idCliente JOIN SEDE s ON v.idSede=s.idSede WHERE v.idVendita=?");
-    $s->execute([$id]); $vendita = $s->fetch();
-    if (!$vendita) { flash('error','Non trovata.'); redirect('vendite.php'); }
-    $d = $pdo->prepare("SELECT dv.*,p.nome AS prodotto,p.unitaMisura,c.pesoNetto FROM DETTAGLIO_VENDITA dv JOIN PRODOTTO p ON dv.idProdotto=p.idProdotto LEFT JOIN CONFEZIONE c ON dv.idConfezione=c.idConfezione WHERE dv.idVendita=?");
-    $d->execute([$id]); $dettagli = $d->fetchAll();
+    $stmtV = $pdo->prepare("
+        SELECT v.*, cl.nome AS cliente, cl.nickname, s.nomeSede
+        FROM V_VENDITA v
+        JOIN CLIENTE cl ON v.idCliente = cl.idCliente
+        JOIN SEDE    s  ON v.idSede    = s.idSede
+        WHERE v.idVendita=?
+    ");
+    $stmtV->execute([$id]);
+    $vendita = $stmtV->fetch();
+    if (!$vendita) { flash('error', 'Non trovata.'); redirect('vendite.php'); }
+
+    $stmtD = $pdo->prepare("SELECT * FROM V_DETTAGLIO WHERE idVendita=?");
+    $stmtD->execute([$id]);
+    $dettagli = $stmtD->fetchAll();
 }
+
 $row = null;
 if ($action === 'edit' && $id) {
-    $s = $pdo->prepare("SELECT * FROM VENDITA WHERE idVendita=?"); $s->execute([$id]); $row = $s->fetch();
-    if (!$row) { flash('error','Non trovata.'); redirect('vendite.php'); }
-    $d = $pdo->prepare("SELECT * FROM DETTAGLIO_VENDITA WHERE idVendita=?"); $d->execute([$id]); $dettagli = $d->fetchAll();
+    $stmtR = $pdo->prepare("SELECT * FROM VENDITA WHERE idVendita=?");
+    $stmtR->execute([$id]);
+    $row = $stmtR->fetch();
+    if (!$row) { flash('error', 'Non trovata.'); redirect('vendite.php'); }
+
+    $stmtD2 = $pdo->prepare("SELECT * FROM DETTAGLIO_VENDITA WHERE idVendita=?");
+    $stmtD2->execute([$id]);
+    $dettagli = $stmtD2->fetchAll();
 }
 
-$clienti    = $pdo->query("SELECT * FROM CLIENTE ORDER BY nome")->fetchAll();
-$sedi       = $pdo->query("SELECT * FROM SEDE ORDER BY nomeSede")->fetchAll();
-$prodotti   = $pdo->query("SELECT * FROM PRODOTTO ORDER BY nome")->fetchAll();
-$confezioni = $pdo->query("SELECT c.*,pp.nome AS prodotto,pp.unitaMisura FROM CONFEZIONE c JOIN PRODUZIONE pr ON c.idProduzione=pr.idProduzione JOIN PRODOTTO pp ON pr.idProdottoProdotto=pp.idProdotto WHERE c.giacenza>0 ORDER BY pp.nome")->fetchAll();
+// ── LOOKUP DATA ───────────────────────────────────────────────
+$stmtCli  = $pdo->prepare("SELECT * FROM CLIENTE ORDER BY nome");
+$stmtCli->execute();
+$clienti  = $stmtCli->fetchAll();
 
-// List
+$stmtSedi = $pdo->prepare("SELECT * FROM SEDE ORDER BY nomeSede");
+$stmtSedi->execute();
+$sedi     = $stmtSedi->fetchAll();
+
+$stmtProd = $pdo->prepare("SELECT * FROM PRODOTTO ORDER BY nome");
+$stmtProd->execute();
+$prodotti = $stmtProd->fetchAll();
+
+$stmtConf = $pdo->prepare("
+    SELECT c.*, pp.nome AS prodotto, pp.unitaMisura
+    FROM CONFEZIONE c
+    JOIN PRODUZIONE pr ON c.idProduzione         = pr.idProduzione
+    JOIN PRODOTTO   pp ON pr.idProdottoProdotto  = pp.idProdotto
+    WHERE c.giacenza > 0
+    ORDER BY pp.nome
+");
+$stmtConf->execute();
+$confezioni = $stmtConf->fetchAll();
+
+// ── LIST ──────────────────────────────────────────────────────
 $wheresL = [];
 $paramsL = [];
-if ($cliFilter)  { $wheresL[] = "v.idCliente=?"; $paramsL[] = $cliFilter; }
-if ($mySedeId)   { $wheresL[] = "v.idSede=$mySedeId"; }
-$wL  = $wheresL ? "WHERE ".implode(' AND ',$wheresL) : '';
-$vendite = $pdo->prepare("SELECT v.*,cl.nome AS cliente,s.nomeSede,COUNT(d.idDettaglio) AS nRighe FROM VENDITA v JOIN CLIENTE cl ON v.idCliente=cl.idCliente JOIN SEDE s ON v.idSede=s.idSede LEFT JOIN DETTAGLIO_VENDITA d ON d.idVendita=v.idVendita $wL GROUP BY v.idVendita ORDER BY v.dataVendita DESC,v.idVendita DESC");
-$vendite->execute($paramsL); $vendite = $vendite->fetchAll();
+if ($cliFilter) { $wheresL[] = "v.idCliente=?"; $paramsL[] = $cliFilter; }
+if ($mySedeId)  { $wheresL[] = "v.idSede=$mySedeId"; }
+$wL = $wheresL ? "WHERE " . implode(' AND ', $wheresL) : '';
 
+$stmtList = $pdo->prepare("
+    SELECT v.*, cl.nome AS cliente, s.nomeSede,
+           COUNT(d.idDettaglio) AS nRighe
+    FROM V_VENDITA v
+    JOIN CLIENTE cl ON v.idCliente = cl.idCliente
+    JOIN SEDE    s  ON v.idSede    = s.idSede
+    LEFT JOIN DETTAGLIO_VENDITA d ON d.idVendita = v.idVendita
+    $wL
+    GROUP BY v.idVendita
+    ORDER BY v.dataVendita DESC, v.idVendita DESC
+");
+$stmtList->execute($paramsL);
+$vendite = $stmtList->fetchAll();
 $pageTitle  = match($action){'create'=>'Nuova Vendita','edit'=>'Modifica Vendita','view'=>'Dettaglio Vendita',default=>'Vendite'};
 $breadcrumb = $action!=='list'?[['label'=>'Vendite','url'=>'vendite.php'],['label'=>$pageTitle]]:null;
 require_once 'includes/header.php';
@@ -144,7 +251,7 @@ require_once 'includes/header.php';
         <td><span class="badge-ok"><?= $v['nRighe'] ?></span></td>
         <td>€<?= number_format($v['totaleCalcolato'],2,',','.') ?></td>
         <td>
-          <span class="fw-bold" style="color:<?= $diff>0?'#d97706':'var(--ag-primary)' ?>">€<?= number_format($v['totalePagato'],2,',','.') ?></span>
+          <span class="fw-bold vendita-pagato" style="color:<?= $diff>0?'var(--ag-warning-text)':'var(--ag-primary)' ?>">€<?= number_format($v['totalePagato'],2,',','.') ?></span>
           <?php if($diff>0): ?><small class="text-warning d-block" style="font-size:.7rem">-€<?= number_format($diff,2,',','.') ?></small><?php endif; ?>
         </td>
         <td class="text-end">

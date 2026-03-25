@@ -36,8 +36,18 @@ function redirect(string $url): never {
 }
 
 // ── Image helper ─────────────────────────────────────────────
-// Restituisce un URL immagine Unsplash ottimizzato per il prodotto
-function getProductImage(string $nome, string $categoria = '', string $tipo = 'fresco'): string {
+// Restituisce l'URL immagine per un prodotto.
+// Priorità:
+//   1. immagineUrl della riga PRODOTTO (URL custom impostata in prodotti.php)
+//   2. keyword-match sul nome del prodotto → Unsplash
+//   3. fallback categoria → Unsplash
+//   4. fallback finale per tipo (fresco/lavorato)
+function getProductImage(string $nome, string $categoria = '', string $tipo = 'fresco', ?string $immagineUrl = null): string {
+    // 1. URL custom salvata nel DB — ha la precedenza assoluta
+    if ($immagineUrl !== null && $immagineUrl !== '') {
+        return $immagineUrl;
+    }
+
     $n = strtolower($nome);
     $c = strtolower($categoria);
 
@@ -56,6 +66,7 @@ function getProductImage(string $nome, string $categoria = '', string $tipo = 'f
         'confettura'   => 'photo-1562805040-2c6d9c42a0e3',
         'zucchin'      => 'photo-1587411768315-b109e8d11b79',
         'fagiolini'    => 'photo-1597362925123-77861d3fbac7',
+        'cetriolo'     => 'photo-1568702846914-96b305d2aaeb',
         'basilico'     => 'photo-1628556270448-4d4e4148e1b1',
         'rosmarino'    => 'photo-1530991472021-23e3601b49a9',
         'lavanda'      => 'photo-1500479694472-551d1fb6258d',

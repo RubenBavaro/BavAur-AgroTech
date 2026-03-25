@@ -252,7 +252,7 @@ $stats = [
 
           <!-- Immagine con overlay esaurito -->
           <div class="product-card-img-wrap" style="position:relative">
-            <img src="<?= getProductImage($p['nome'], $p['nomeCategoria'] ?? '', $tipo) ?>"
+            <img src="<?= getProductImage($p['nome'], $p['nomeCategoria'] ?? '', $tipo, $p['immagineUrl'] ?? null) ?>"
                  alt="<?= h($p['nome']) ?>" class="product-card-img" loading="lazy"
                  onerror="this.src='https://images.unsplash.com/photo-1500937386664-56d1dfef3854?w=500&h=360&fit=crop'">
             <?php if ($esaurito): ?>

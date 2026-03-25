@@ -4,12 +4,34 @@ require_once 'config/session.php';
 
 // Solo clienti loggati
 if (!isset($_SESSION['user']) || $_SESSION['user']['ruolo'] !== 'cliente') {
-    $_SESSION['flash'] = ['type'=>'error','msg'=>'Devi fare il login come cliente per accedere al carrello.'];
+    $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Devi fare il login come cliente per accedere al carrello.'];
     header('Location: login.php'); exit;
 }
 
 $userId   = $_SESSION['user']['idUtente'];
 $userName = $_SESSION['user']['nome'];
+
+// ── PREPARED STATEMENTS ──────────────────────────────────────
+$stmtFindCli  = $pdo->prepare(
+    "SELECT idCliente FROM CLIENTE WHERE idUtente=?"
+);
+$stmtInsCli   = $pdo->prepare(
+    "INSERT INTO CLIENTE (nome, idUtente) VALUES (?, ?)"
+);
+$stmtDecGiac  = $pdo->prepare(
+    "UPDATE CONFEZIONE
+     SET giacenza = giacenza - ?
+     WHERE idConfezione=? AND giacenza>=?"
+);
+$stmtInsVend  = $pdo->prepare(
+    "INSERT INTO VENDITA (dataVendita, totalePagato, note, idCliente, idSede)
+     VALUES (CURDATE(), ?, ?, ?, ?)"
+);
+$stmtInsDet   = $pdo->prepare(
+    "INSERT INTO DETTAGLIO_VENDITA
+         (quantita, prezzoUnitario, omaggio, idVendita, idProdotto, idConfezione)
+     VALUES (?, ?, 0, ?, ?, ?)"
+);
 
 // ── CHECKOUT (POST) ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['checkout'])) {
@@ -19,19 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['checkout'])) {
     $note     = trim($_POST['note'] ?? '') ?: null;
 
     if (empty($cart) || !$idSede) {
-        $_SESSION['flash'] = ['type'=>'error','msg'=>'Seleziona una sede e aggiungi prodotti al carrello.'];
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Seleziona una sede e aggiungi prodotti al carrello.'];
         header('Location: carrello.php'); exit;
     }
 
-    // Trova o crea il CLIENTE per questo utente (per associarlo alla VENDITA)
-    $stmtCli = $pdo->prepare("SELECT idCliente FROM CLIENTE WHERE contatti LIKE ?");
-    $stmtCli->execute(['%utente:'.$userId.'%']);
-    $cliRow = $stmtCli->fetch();
-
+    // Trova o crea il CLIENTE collegato (relazione REGISTRA)
+    $stmtFindCli->execute([$userId]);
+    $cliRow = $stmtFindCli->fetch();
     if (!$cliRow) {
-        // Crea il cliente anagrafico collegato all'utente
-        $pdo->prepare("INSERT INTO CLIENTE (nome, nickname, contatti) VALUES (?,?,?)")
-            ->execute([$userName, null, 'utente:'.$userId]);
+        // Safety net: crea il cliente se mancante (es. utenti pre-v3)
+        $stmtInsCli->execute([$userName, $userId]);
         $idCliente = $pdo->lastInsertId();
     } else {
         $idCliente = $cliRow['idCliente'];
@@ -39,89 +58,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['checkout'])) {
 
     $pdo->beginTransaction();
     try {
-        $totaleCalc = 0;
-        $righe = [];
+        $totaleCalc = 0.0;
+        $righe      = [];
 
-        // Prezzi simulati FISSI — devono corrispondere esattamente al JS del carrello
+        // Prezzi simulati fissi (devono coincidere con il JS della homepage)
         $PREZZO_LAVORATO = 8.50;
         $PREZZO_FRESCO   = 3.50;
 
         foreach ($cart as $item) {
-            $pid  = (int)$item['id'];
+            $pid  = (int)($item['id']  ?? 0);
             $qta  = max(1, (int)($item['qta'] ?? 1));
             $tipo = $item['tipo'] ?? 'fresco';
-
+            $prezzo       = ($tipo === 'lavorato') ? $PREZZO_LAVORATO : $PREZZO_FRESCO;
             $idConfezione = null;
-            $prezzo = ($tipo === 'lavorato') ? $PREZZO_LAVORATO : $PREZZO_FRESCO;
 
             if ($tipo === 'lavorato') {
-                // Cerca la confezione con giacenza sufficiente (FIFO per data)
-                $confQ = $pdo->prepare("
+                // ── SELECT FOR UPDATE ────────────────────────────────────────────
+                // Acquisisce un lock esclusivo sulla riga della confezione per
+                // tutta la durata di questa transazione.
+                //
+                // Senza FOR UPDATE si avrebbe una race condition:
+                //   Utente A legge giacenza=3  →  procede
+                //   Utente B legge giacenza=3  →  procede (legge dato "vecchio")
+                //   Utente A scala a 2, commit
+                //   Utente B scala a 2, commit  ← "giacenza fantasma"
+                //
+                // Con FOR UPDATE:
+                //   Utente A legge e locka  →  procede
+                //   Utente B arriva, aspetta in coda sul lock
+                //   Utente A scala a 2, commit, lock rilasciato
+                //   Utente B legge la giacenza aggiornata (2)  →  procede o fallisce
+                $stmtLockConf = $pdo->prepare("
                     SELECT c.idConfezione, c.giacenza
                     FROM CONFEZIONE c
                     JOIN PRODUZIONE pr ON c.idProduzione = pr.idProduzione
                     WHERE pr.idProdottoProdotto = ?
                       AND c.giacenza >= ?
                     ORDER BY c.dataConfezionamento ASC
-                    LIMIT 1");
-                $confQ->execute([$pid, $qta]);
-                $confRow = $confQ->fetch();
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $stmtLockConf->execute([$pid, $qta]);
+                $confRow = $stmtLockConf->fetch();
 
                 if (!$confRow) {
-                    // Prodotto esaurito o quantità non disponibile
+                    // Giacenza insufficiente — potrebbe essere esaurita da un
+                    // altro utente che aveva il lock appena prima di noi.
                     $pdo->rollBack();
-                    $_SESSION['flash'] = ['type'=>'error',
-                        'msg'=>"Prodotto non disponibile nelle quantità richieste. Controlla il carrello."];
+                    $_SESSION['flash'] = ['type' => 'error',
+                        'msg' => 'Prodotto non disponibile nelle quantità richieste. Un altro acquisto potrebbe averlo esaurito — ricarica il carrello.'];
                     header('Location: carrello.php'); exit;
                 }
 
                 $idConfezione = $confRow['idConfezione'];
-
-                // Decrementa giacenza — mai sotto 0 grazie al check sopra
-                $pdo->prepare("
-                    UPDATE CONFEZIONE
-                    SET giacenza = giacenza - ?
-                    WHERE idConfezione = ?
-                      AND giacenza >= ?")
-                    ->execute([$qta, $idConfezione, $qta]);
             }
 
+            // 3NF: lavorato → idConfezione NOT NULL, idProdotto NULL (derivabile)
+            //      fresco   → idConfezione NULL,     idProdotto NOT NULL
             $totaleCalc += $prezzo * $qta;
-            $righe[] = ['pid'=>$pid,'qta'=>$qta,'prezzo'=>$prezzo,'idConf'=>$idConfezione];
+            $righe[] = ['pid' => $pid, 'qta' => $qta, 'prezzo' => $prezzo, 'idConf' => $idConfezione];
         }
 
-        // Crea VENDITA
-        $pdo->prepare("
-            INSERT INTO VENDITA (dataVendita,totaleCalcolato,totalePagato,note,idCliente,idSede)
-            VALUES (CURDATE(),?,?,?,?,?)")
-            ->execute([$totaleCalc, $totaleCalc, $note, $idCliente, $idSede]);
+        // Crea la VENDITA
+        $stmtInsVend->execute([$totaleCalc, $note, $idCliente, $idSede]);
         $idVendita = $pdo->lastInsertId();
 
-        // Crea DETTAGLIO_VENDITA
+        // Inserisce dettagli e scala le giacenze.
+        // Il lock FOR UPDATE è già attivo su ogni confezione: il decremento è
+        // atomico rispetto a qualsiasi altra transazione concorrente.
         foreach ($righe as $r) {
-            $pdo->prepare("
-                INSERT INTO DETTAGLIO_VENDITA (quantita,prezzoUnitario,omaggio,idVendita,idProdotto,idConfezione)
-                VALUES (?,?,0,?,?,?)")
-                ->execute([$r['qta'],$r['prezzo'],$idVendita,$r['pid'],$r['idConf']]);
+            $idProdSave = $r['idConf'] ? null : $r['pid'];
+            $stmtInsDet->execute([$r['qta'], $r['prezzo'], $idVendita, $idProdSave, $r['idConf']]);
+            if ($r['idConf']) {
+                $stmtDecGiac->execute([$r['qta'], $r['idConf'], $r['qta']]);
+            }
         }
 
         $pdo->commit();
 
         $_SESSION['last_order'] = [
-            'idVendita'   => $idVendita,
-            'totale'      => $totaleCalc,
-            'nProdotti'   => count($righe),
+            'idVendita' => $idVendita,
+            'totale'    => $totaleCalc,
+            'nProdotti' => count($righe),
         ];
-        $_SESSION['flash'] = ['type'=>'success','msg'=>"✅ Ordine #$idVendita confermato! Totale: €".number_format($totaleCalc,2,',','.')];
+        $_SESSION['flash'] = ['type' => 'success',
+            'msg' => "✅ Ordine #$idVendita confermato! Totale: €" . number_format($totaleCalc, 2, ',', '.')];
         header('Location: ordini.php'); exit;
 
     } catch (Throwable $e) {
         $pdo->rollBack();
-        $_SESSION['flash'] = ['type'=>'error','msg'=>'Errore durante il checkout: '.$e->getMessage()];
+        $_SESSION['flash'] = ['type' => 'error', 'msg' => 'Errore durante il checkout: ' . $e->getMessage()];
         header('Location: carrello.php'); exit;
     }
 }
 
+// Sedi per il form
 // Sedi per il form
 $sedi = $pdo->query("SELECT * FROM SEDE ORDER BY nomeSede")->fetchAll();
 
