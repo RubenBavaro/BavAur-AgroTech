@@ -4,14 +4,13 @@
 <!-- SHIELDS -->
 <div align="center">
 
-[![Status](https://img.shields.io/badge/status-in%20sviluppo-brightgreen?style=for-the-badge)](https://github.com/your_username/agromanager)
-[![Versione](https://img.shields.io/badge/versione-1.0.0-blue?style=for-the-badge)](https://github.com/your_username/agromanager)
+[![Status](https://img.shields.io/badge/status-in%20sviluppo-brightgreen?style=for-the-badge)](https://github.com/RubenBavaro/BavAur-AgroTech)
+[![Versione](https://img.shields.io/badge/versione-1.0.0-blue?style=for-the-badge)](https://github.com/RubenBavaro/BavAur-AgroTech)
 [![Licenza](https://img.shields.io/badge/licenza-MIT-yellow?style=for-the-badge)](LICENSE.txt)
-[![Database](https://img.shields.io/badge/database-relazionale-orange?style=for-the-badge&logo=mysql&logoColor=white)](https://github.com/your_username/agromanager)
+[![Database](https://img.shields.io/badge/database-relazionale-orange?style=for-the-badge&logo=mysql&logoColor=white)](https://github.com/RubenBavaro/BavAur-AgroTech)
 
 </div>
 
-<!-- LOGO E TITOLO -->
 <br />
 <div align="center">
   <a href="https://github.com/RubenBavaro/BavAur-AgroTech">
@@ -27,12 +26,11 @@
     <br />
     <br />
     <a href="https://docs.google.com/document/d/1iQn10vGXzG8XahtEoyIvBHJMU6FeDTPvbSqV_C37omU/edit?usp=sharing"><strong>Leggi l'analisi completa »</strong></a>
-    <br />
-    <br />
+    &nbsp;·&nbsp;
     <a href="https://drive.google.com/file/d/1mZxfmnd_IXcovyFWqYBGdYFGCsdZgcPs/view?usp=sharing">Visualizza lo Schema ER</a>
-    ·
+    &nbsp;·&nbsp;
     <a href="https://github.com/RubenBavaro/BavAur-AgroTech/issues/new?labels=bug">Segnala un Bug</a>
-    ·
+    &nbsp;·&nbsp;
     <a href="https://github.com/RubenBavaro/BavAur-AgroTech/issues/new?labels=enhancement">Richiedi una Feature</a>
   </p>
 </div>
@@ -45,20 +43,17 @@
   <ol>
     <li><a href="#-il-progetto">Il Progetto</a></li>
     <li><a href="#-funzionalità-principali">Funzionalità Principali</a></li>
+    <li><a href="#-ruoli-e-accessi">Ruoli e Accessi</a></li>
     <li><a href="#-schema-entità-relazione">Schema Entità-Relazione</a></li>
-    <li><a href="#-modello-dei-dati">Modello dei Dati</a>
-      <ul>
-        <li><a href="#entità">Entità</a></li>
-        <li><a href="#associazioni">Associazioni</a></li>
-      </ul>
-    </li>
+    <li><a href="#-modello-dei-dati">Modello dei Dati</a></li>
     <li><a href="#-tecnologie">Tecnologie</a></li>
     <li><a href="#-per-iniziare">Per Iniziare</a>
       <ul>
         <li><a href="#prerequisiti">Prerequisiti</a></li>
-        <li><a href="#installazione">Installazione</a></li>
+        <li><a href="#installazione-e-avvio">Installazione e Avvio</a></li>
       </ul>
     </li>
+    <li><a href="#-credenziali-di-test">Credenziali di Test</a></li>
     <li><a href="#-struttura-del-progetto">Struttura del Progetto</a></li>
     <li><a href="#-roadmap">Roadmap</a></li>
     <li><a href="#-contribuire">Contribuire</a></li>
@@ -71,16 +66,20 @@
 
 ## 🌿 Il Progetto
 
-**AgroManager** è un sistema informativo progettato per digitalizzare e razionalizzare la gestione operativa di una piccola azienda agricola che produce, trasforma, confeziona e vende prodotti agricoli.
+**AgroManager** è un sistema informativo completo per la gestione digitale di una piccola azienda agricola che produce, trasforma, confeziona e vende prodotti agricoli.
 
-Il sistema centralizza tutte le informazioni in un **database relazionale strutturato**, garantendo:
+Il sistema è composto da due aree distinte:
+
+- 🌐 **Vetrina pubblica** — homepage accessibile a tutti con catalogo prodotti, immagini reali, filtri e sezione sedi
+- 🔒 **Area amministrativa** — dashboard protetta per la gestione completa di prodotti, produzioni, confezioni, vendite e clienti
+
+Tutte le informazioni sono centralizzate in un **database relazionale strutturato**, garantendo:
 
 - 📦 **Tracciabilità completa** — dalla materia prima alla confezione venduta
 - 📊 **Integrità dei dati** — vincoli logici su giacenze, totali e riferimenti
-- 🏠 **Gestione multi-sede** — coordinamento di più sedi operative
+- 🏠 **Gestione multi-sede** — ogni admin gestisce solo i dati della propria sede
 - 🔗 **Coerenza referenziale** — ogni vendita è collegata al prodotto, alla confezione e alla produzione di origine
-
-> Il modello nasce dall'analisi dei requisiti di una reale azienda agricola, con focus su semplicità, estensibilità e correttezza semantica.
+- 🌙 **Tema chiaro/scuro** — selezionabile dall'utente e persistente su tutte le pagine
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -90,13 +89,37 @@ Il sistema centralizza tutte le informazioni in un **database relazionale strutt
 
 | Area | Descrizione |
 |------|-------------|
-| 🥬 **Classificazione Prodotti** | Gestione unificata con attributo `tipoProdotto` (fresco / lavorato) |
-| ⚙️ **Gestione Produzione** | Tracciamento cicli produttivi con doppia associazione al prodotto |
-| 📦 **Gestione Confezioni** | Lotti confezionati con controllo giacenza in tempo reale |
-| 👤 **Gestione Clienti** | Anagrafica clienti con nickname e recapiti |
-| 🧾 **Gestione Vendite** | Vendite con dettaglio righe, omaggi e totali calcolati |
-| 🏠 **Gestione Sedi** | Più sedi per produzione e vendita, collegate a ogni operazione |
-| 🗂️ **Categorie** | Classificazione merceologica dei prodotti |
+| 🏠 **Homepage Pubblica** | Vetrina con catalogo prodotti, immagini reali da Unsplash, filtri fresco/lavorato, badge "Esaurito", sezione sedi |
+| 🛒 **Carrello & Acquisto** | Acquisto simulato con aggiornamento giacenze reale nel DB, storico ordini personale |
+| 🔐 **Autenticazione** | Login multi-ruolo, tab dedicato per admin sede, registrazione clienti, password hashate con bcrypt |
+| 🌙 **Tema Chiaro/Scuro** | Toggle sempre disponibile, scelta persistente tramite `localStorage` |
+| 🥬 **Classificazione Prodotti** | Attributo `tipoProdotto` (fresco/lavorato), descrizioni, badge disponibilità in tempo reale |
+| ⚙️ **Gestione Produzione** | Cicli produttivi con doppia associazione (VIENE PRODOTTO + VIENE LAVORATO) |
+| 📦 **Gestione Confezioni** | Lotti confezionati con barra giacenza colorata, badge "Esaurito", decremento automatico all'acquisto |
+| 👤 **Gestione Clienti** | Anagrafica con totale speso, numero vendite e link allo storico |
+| 🧾 **Gestione Vendite** | Form con righe dinamiche JS, omaggi, totali calcolati in tempo reale, ripristino giacenze su eliminazione |
+| 🏢 **Gestione Sedi** | Admin per sede con modifica inline delle giacenze, visualizzazione credenziali admin |
+| 🗂️ **Categorie** | Classificazione merceologica con contatore prodotti associati |
+
+<p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
+
+---
+
+## 🔐 Ruoli e Accessi
+
+| Ruolo | Area di accesso | Permessi |
+|-------|-----------------|----------|
+| **Superadmin** | Dashboard completa | Gestione totale di tutti i dati e tutte le sedi |
+| **Sede Admin** | Dashboard filtrata | Solo dati della propria sede (produzioni, confezioni, vendite) |
+| **Cliente** | Homepage + Carrello + Ordini | Sfoglia catalogo, acquista (simulato), vede i propri ordini |
+| **Ospite** | Solo Homepage | Visualizza il catalogo, non può acquistare |
+
+### Note di sicurezza
+
+- Le password sono hashate con **bcrypt** (`PASSWORD_BCRYPT`)
+- La **sessione PHP** viene avviata solo al momento del login, non nelle pagine pubbliche
+- Le credenziali degli **admin di sede** si impostano esclusivamente via phpMyAdmin (campo `admin_password_hash` nella tabella `SEDE`), non sono accessibili dall'interfaccia web
+- Ogni pagina dell'area admin include un **auth guard** che reindirizza automaticamente gli utenti non autorizzati
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -104,7 +127,7 @@ Il sistema centralizza tutte le informazioni in un **database relazionale strutt
 
 ## 🗺️ Schema Entità-Relazione
 
-Lo schema ER segue la **notazione Chen classica** (rettangoli, rombi, ellissi) ed è disponibile nel file precedemente fornito, apribile su [app.diagrams.net](https://app.diagrams.net).
+Lo schema ER segue la **notazione Chen classica** (rettangoli, rombi, ellissi) ed è disponibile nel file `.drawio` apribile su [app.diagrams.net](https://app.diagrams.net).
 
 ```
 CLIENTE ──[EFFETTUA]──> VENDITA ──[AVVIENE IN]──> SEDE
@@ -118,7 +141,7 @@ CLIENTE ──[EFFETTUA]──> VENDITA ──[AVVIENE IN]──> SEDE
                        CONFEZIONE <──[CONFEZIONA]── PRODUZIONE ──[AVVIENE IN]──> SEDE
 ```
 
-> 💡 La **doppia associazione** tra PRODOTTO e PRODUZIONE (`VIENE PRODOTTO` + `VIENE LAVORATO`) rappresenta i due ruoli del prodotto: quello generato e quello utilizzato come materia prima.
+> 💡 La **doppia associazione** tra PRODOTTO e PRODUZIONE (`VIENE PRODOTTO` + `VIENE LAVORATO`) rappresenta i due ruoli del prodotto: quello generato dalla produzione e quello utilizzato come materia prima.
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -130,14 +153,15 @@ CLIENTE ──[EFFETTUA]──> VENDITA ──[AVVIENE IN]──> SEDE
 
 | Entità | Attributi chiave | Descrizione |
 |--------|-----------------|-------------|
-| `CLIENTE` | `idCliente` PK, nome, nickname, password | Anagrafica clienti |
+| `UTENTE` | `idUtente` PK, nome, email, password_hash, ruolo, idSede | Account di accesso (superadmin / sede_admin / cliente) |
+| `CLIENTE` | `idCliente` PK, nome, nickname, contatti | Anagrafica clienti acquirenti |
 | `VENDITA` | `idVendita` PK, dataVendita, totaleCalcolato, totalePagato, note | Transazione commerciale |
 | `DETTAGLIO_VENDITA` | `idDettaglio` PK, quantita, prezzoUnitario, omaggio | Riga della vendita |
-| `PRODOTTO` | `idProdotto` PK, nome, unitaMisura, **tipoProdotto** | Prodotto (fresco o lavorato) |
+| `PRODOTTO` | `idProdotto` PK, nome, unitaMisura, **tipoProdotto**, descrizione | Prodotto (fresco o lavorato) |
 | `CATEGORIA` | `idCategoria` PK, nomeCategoria | Categoria merceologica |
 | `PRODUZIONE` | `idProduzione` PK, dataProduzione, quantitaProdotta | Ciclo produttivo |
 | `CONFEZIONE` | `idConfezione` PK, dataConfezionamento, pesoNetto, numeroConfezioni, giacenza | Lotto confezionato |
-| `SEDE` | `idSede` PK, nomeSede, indirizzo | Sede operativa |
+| `SEDE` | `idSede` PK, nomeSede, indirizzo, admin_email, admin_password_hash | Sede operativa con credenziali admin |
 
 ### Associazioni
 
@@ -165,11 +189,13 @@ CLIENTE ──[EFFETTUA]──> VENDITA ──[AVVIENE IN]──> SEDE
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
+[![Bootstrap](https://img.shields.io/badge/Bootstrap-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
 
-- **Backend**: PHP 8+ — logica applicativa e interazione con il database
-- **Database**: MySQL 8 — storage relazionale centralizzato
-- **Infrastruttura**: Docker + Docker Compose — ambiente containerizzato, nessuna installazione manuale richiesta
-- **Frontend**: HTML5 + CSS3 — interfaccia di gestione
+- **Backend**: PHP 8.2 — logica applicativa, autenticazione, gestione sessioni con PDO
+- **Database**: MySQL 8 — storage relazionale con vincoli di integrità e foreign key
+- **Infrastruttura**: Docker + Docker Compose — stack completo con PHP, MySQL e phpMyAdmin
+- **Frontend**: HTML5 + CSS3 + Bootstrap 5.3 + Font Awesome 6 — interfaccia responsive con tema chiaro/scuro
+- **Immagini**: Unsplash — immagini reali dei prodotti caricate dinamicamente tramite URL
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -184,9 +210,8 @@ Prima di procedere, assicurati di avere installato sul tuo sistema:
 - **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (include Docker Compose) — versione 24.0 o superiore
 - **[Git](https://git-scm.com/)** — per clonare il repository
 - Un client MySQL per importare i file SQL, ad esempio:
-  - [VisualStudio]
-
-  - [phpMyAdmin](https://www.phpmyadmin.net/) _(disponibile nel container)_
+  - [phpMyAdmin](https://www.phpmyadmin.net/) _(già disponibile nel container su `http://localhost:8081`)_
+  - [DBeaver](https://dbeaver.io/) o [TablePlus](https://tableplus.com/)
 
 > ⚠️ **Non è necessario** installare PHP o MySQL sul proprio sistema: tutto gira all'interno dei container Docker.
 
@@ -194,12 +219,11 @@ Prima di procedere, assicurati di avere installato sul tuo sistema:
 
 ### Installazione e avvio
 
-Segui questi passi nell'ordine indicato per avere il progetto funzionante in pochi minuti.
-
 **1. Clona il repository**
 
 ```bash
 git clone https://github.com/RubenBavaro/BavAur-AgroTech.git
+```
 
 **2. Entra nella cartella root del progetto**
 
@@ -209,13 +233,11 @@ cd BavAur-AgroTech
 
 **3. Avvia i container Docker**
 
-Dalla cartella root, lancia il seguente comando nel terminale:
-
 ```bash
 docker compose up -d
 ```
 
-Docker scaricherà le immagini necessarie (PHP, MySQL, ecc.) e avvierà tutti i servizi in background. La prima esecuzione potrebbe richiedere qualche minuto.
+Docker scaricherà le immagini necessarie e avvierà tutti i servizi in background. La prima esecuzione potrebbe richiedere qualche minuto.
 
 Per verificare che i container siano attivi:
 
@@ -229,48 +251,57 @@ Dovresti vedere tutti i servizi con stato `running`.
 
 > ⚠️ Questo passaggio è **manuale** e va eseguito una sola volta dopo il primo avvio.
 
-Una volta che i container sono in esecuzione, connettiti al database MySQL tramite il tuo client preferito con le credenziali configurate nel file `docker-compose.yml`, quindi importa i file SQL nella seguente cartella del progetto:
+Connettiti a phpMyAdmin su `http://localhost:8081` e importa in ordine i file dalla cartella `SQL/`:
 
 ```
-agromanager/
+BavAur-AgroTech/
 └── SQL/
-    ├── schema.sql    ← importa prima questo (crea le tabelle)
-    └── seed.sql      ← importa dopo questo (dati di esempio, opzionale)
+    ├── schema.sql    ← importa PRIMA questo (crea le tabelle)
+    └── seed.sql      ← importa DOPO questo (dati e utenti di esempio)
 ```
 
-In alternativa, puoi importare da riga di comando con:
+In alternativa, da riga di comando:
 
 ```bash
-# Importa lo schema (struttura del database)
-docker exec -i agromanager-db mysql -u root -psecret agromanager < SQL/schema.sql
-
-# Importa i dati di esempio (opzionale)
-docker exec -i agromanager-db mysql -u root -psecret agromanager < SQL/seed.sql
+docker exec -i BavAur-AgroTech-DB mysql -u myuser -pmypassword myapp_db < SQL/schema.sql
+docker exec -i BavAur-AgroTech-DB mysql -u myuser -pmypassword myapp_db < SQL/seed.sql
 ```
 
 **5. Apri l'applicazione**
 
-Una volta completata l'importazione, apri il browser e vai su:
-
 ```
-http://localhost:8080
+http://localhost:8080   →  Homepage pubblica (punto di ingresso)
+http://localhost:8081   →  phpMyAdmin (gestione database)
 ```
 
 ---
 
 ### Fermare il progetto
 
-Per fermare tutti i container senza perdere i dati:
-
 ```bash
-docker compose stop
+docker compose stop    # ferma i container, i dati vengono conservati
+docker compose down    # ferma e rimuove i container, i volumi rimangono
 ```
 
-Per fermare e rimuovere i container (i dati nel volume MySQL vengono conservati):
+<p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
-```bash
-docker compose down
-```
+---
+
+## 🔑 Credenziali di Test
+
+Dopo aver importato `seed.sql` sono disponibili i seguenti account:
+
+| Ruolo | Email | Password | Come accedere |
+|-------|-------|----------|---------------|
+| **Superadmin** | `superadmin@agro.it` | `admin123` | Tab "Utente" nella pagina login |
+| **Admin Sede Nord** | `nord@agro.it` | `sede123` | Tab **"Admin Sede"** nella pagina login |
+| **Admin Sede Sud** | `sud@agro.it` | `sede123` | Tab **"Admin Sede"** nella pagina login |
+| **Cliente** | `mario@email.it` | `cliente123` | Tab "Utente" → accede a carrello e ordini |
+
+> 🔒 Per impostare le credenziali admin di una sede in produzione, aggiorna il campo `admin_password_hash` nella tabella `SEDE` via phpMyAdmin con un hash bcrypt:
+> ```php
+> password_hash('tuapassword', PASSWORD_BCRYPT)
+> ```
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -279,15 +310,47 @@ docker compose down
 ## 📁 Struttura del Progetto
 
 ```
-agromanager/
+BavAur-AgroTech/
 │
+├── SQL/
+│   ├── schema.sql              # DDL: CREATE TABLE, vincoli, foreign key
+│   └── seed.sql                # Dati di esempio + utenti con password hashate bcrypt
 │
-├── sql/
-│   ├── schema.sql                          # DDL: CREATE TABLE e vincoli
-│   └── seed.sql                            # Dati di esempio
+├── src/                        # Codice sorgente (montato in /var/www/html)
+│   ├── assets/css/
+│   │   └── style.css           # Tema custom completo con supporto chiaro/scuro
+│   │
+│   ├── config/
+│   │   ├── db.php              # Connessione PDO + helper h(), redirect(), getProductImage()
+│   │   └── session.php         # Sessione PHP + helper isLoggedIn(), isSuperAdmin(), userSede()
+│   │
+│   ├── includes/
+│   │   ├── auth.php            # Guard: blocca accessi non autorizzati, reindirizza al login
+│   │   ├── header.php          # Sidebar admin + topbar con theme toggle e badge utente
+│   │   └── footer.php          # Bootstrap JS + logica tema chiaro/scuro + sidebar mobile
+│   │
+│   │   ── AREA PUBBLICA ──────────────────────────────────────────────────
+│   ├── index.php               # Router intelligente (admin→dashboard, altri→homepage)
+│   ├── homepage.php            # Vetrina pubblica con catalogo, immagini, filtri e sedi
+│   ├── login.php               # Login con tab Utente / Admin Sede
+│   ├── register.php            # Registrazione nuovi clienti
+│   ├── logout.php              # Distruzione completa della sessione
+│   ├── carrello.php            # Carrello + checkout simulato + aggiornamento giacenze DB
+│   └── ordini.php              # Storico ordini personale del cliente
 │
-├── README.md
-└── LICENSE.txt
+│       ── AREA ADMIN (protetta da auth.php) ──────────────────────────────
+│   ├── dashboard.php           # Statistiche, azioni rapide, ultime vendite, giacenze basse
+│   ├── clienti.php             # CRUD clienti con totale speso e link vendite
+│   ├── categorie.php           # CRUD categorie con contatore prodotti
+│   ├── prodotti.php            # CRUD prodotti con filtro categoria e badge stock
+│   ├── produzioni.php          # CRUD produzioni con doppia associazione prodotto
+│   ├── confezioni.php          # CRUD confezioni con barra giacenza e badge esaurito
+│   ├── sedi.php                # CRUD sedi + pagina gestione giacenze inline per sede admin
+│   └── vendite.php             # CRUD vendite con righe JS dinamiche e ripristino giacenze
+│
+├── Dockerfile                  # PHP 8.2 + Apache + mysqli + pdo_mysql
+├── docker-compose.yaml         # Stack: php-web (8080), mysql, phpmyadmin (8081)
+└── README.md
 ```
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
@@ -296,15 +359,24 @@ agromanager/
 
 ## 🗺️ Roadmap
 
-- [x] Analisi dei requisiti
-- [x] Schema Entità-Relazione (notazione Chen)
-- [x] Tabella delle associazioni e regole di lettura
-- [x] Vincoli di integrità logica
-- [ ] Generazione DDL SQL (`schema.sql`)
-- [ ] Dati di esempio (`seed.sql`)
-- [ ] Interfaccia web di gestione
+- [x] Analisi dei requisiti e progettazione concettuale
+- [x] Schema Entità-Relazione in notazione Chen
+- [x] Schema SQL con vincoli di integrità
+- [x] Dati di esempio con utenti e password hashate
+- [x] Sistema di autenticazione con tre ruoli distinti
+- [x] Homepage pubblica con catalogo, immagini reali e sezione sedi
+- [x] Carrello acquisti con checkout simulato e aggiornamento giacenze reale
+- [x] Storico ordini personale per i clienti
+- [x] Dashboard amministrativa con statistiche in tempo reale
+- [x] CRUD completo per tutte le entità
+- [x] Gestione giacenze inline per gli admin di sede
+- [x] Tema chiaro/scuro persistente su tutte le pagine
+- [x] Filtro dati per sede negli admin di sede
+- [ ] Esportazione report vendite in PDF
+- [ ] Notifiche per giacenze basse
+- [ ] Ricerca full-text nel catalogo
 
-Consulta le [issue aperte](https://github.com/RubenBavaro/BavAur-AgroTech/issues) per la lista completa delle feature proposte.
+Consulta le [issue aperte](https://github.com/RubenBavaro/BavAur-AgroTech/issues) per la lista completa.
 
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
 
@@ -335,23 +407,24 @@ Distribuito sotto licenza MIT. Vedi `LICENSE.txt` per maggiori informazioni.
 ---
 
 ## 📬 Contatti
- 
+
 **Ruben Bavaro** — [@RubenBavaro](https://github.com/RubenBavaro)
- 
+
 **Raffaele Auriole** — [@RaffaeleeAuriole](https://github.com/RaffaeleeAuriole)
- 
+
 Link al progetto: [https://github.com/RubenBavaro/BavAur-AgroTech](https://github.com/RubenBavaro/BavAur-AgroTech)
- 
+
 <p align="right">(<a href="#readme-top">↑ torna su</a>)</p>
- 
+
 ---
 
 ## 🙏 Ringraziamenti
 
-Risorse utili utilizzate durante lo sviluppo del progetto:
-
 - [Best-README-Template](https://github.com/othneildrew/Best-README-Template) — template di riferimento per questo README
-- [draw.io](https://app.diagrams.net) — strumento gratuito per diagrammi ER
+- [Bootstrap 5](https://getbootstrap.com/) — framework CSS per l'interfaccia responsive
+- [Font Awesome 6](https://fontawesome.com/) — icone dell'interfaccia
+- [Unsplash](https://unsplash.com/) — immagini gratuite dei prodotti
+- [draw.io](https://app.diagrams.net) — strumento per il diagramma ER
 - [Shields.io](https://shields.io) — badge per il README
 - [MySQL Documentation](https://dev.mysql.com/doc/) — riferimento per la progettazione del database
 - [Chen's ER Model](https://en.wikipedia.org/wiki/Entity%E2%80%93relationship_model) — notazione utilizzata nello schema ER
