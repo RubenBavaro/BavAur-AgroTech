@@ -38,9 +38,10 @@ define('PREZZO_FRESCO',   3.50);
 
 // Statistiche vitrina
 $stats = [
-    'prodotti' => $pdo->query("SELECT COUNT(*) FROM PRODOTTO")->fetchColumn(),
-    'sedi'     => $pdo->query("SELECT COUNT(*) FROM SEDE")->fetchColumn() - 1,
-    'clienti' => $pdo->query("SELECT COUNT(*) FROM CLIENTE")->fetchColumn() - 5,];
+    'prodotti' => (int)$pdo->query("SELECT COUNT(*) FROM PRODOTTO")->fetchColumn(),
+    'sedi'     => (int)$pdo->query("SELECT COUNT(*) FROM SEDE")->fetchColumn(),
+    'clienti'  => (int)$pdo->query("SELECT COUNT(*) FROM CLIENTE")->fetchColumn(),
+];
 ?>
 <!DOCTYPE html>
 <html lang="it" data-theme="light">
@@ -166,7 +167,7 @@ $stats = [
           <?php foreach ([
             ['value'=>$stats['prodotti'],'label'=>'Prodotti','icon'=>'fa-seedling'],
             ['value'=>$stats['sedi'],    'label'=>'Sedi Operative','icon'=>'fa-location-dot'],
-            ['value'=>$stats['clienti'], 'label'=>'Clienti Registrati','icon'=>'fa-users'],
+            ['value'=>$stats['clienti'], 'label'=>'Clienti Attivi','icon'=>'fa-users'],
             ['value'=>'100%',            'label'=>'Naturale','icon'=>'fa-leaf'],
           ] as $hs): ?>
           <div style="background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:20px;text-align:center">

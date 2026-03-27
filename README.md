@@ -25,7 +25,7 @@
     Dalla produzione alla vendita, tutto tracciato in un unico database relazionale.
     <br />
     <br />
-    <a href="https://docs.google.com/document/d/1iQn10vGXzG8XahtEoyIvBHJMU6FeDTPvbSqV_C37omU/edit?usp=sharing"><strong>Leggi l'analisi completa »</strong></a>
+    <a href="https://docs.google.com/document/d/1V_1WwZd7de5VlkkN7gClvhfG-A94TcO4/edit?usp=sharing&ouid=109426199770378954990&rtpof=true&sd=true"><strong>Leggi l'analisi completa »</strong></a>
     &nbsp;·&nbsp;
     <a href="https://drive.google.com/file/d/1mZxfmnd_IXcovyFWqYBGdYFGCsdZgcPs/view?usp=sharing">Visualizza lo Schema ER</a>
     &nbsp;·&nbsp;
