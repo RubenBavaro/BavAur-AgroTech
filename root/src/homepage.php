@@ -39,7 +39,7 @@ define('PREZZO_FRESCO',   3.50);
 // Statistiche vitrina
 $stats = [
     'prodotti' => $pdo->query("SELECT COUNT(*) FROM PRODOTTO")->fetchColumn(),
-    'sedi'     => $pdo->query("SELECT COUNT(*) FROM SEDE")->fetchColumn(),
+    'sedi'     => $pdo->query("SELECT COUNT(*) FROM SEDE")->fetchColumn() - 1,
     'clienti' => $pdo->query("SELECT COUNT(*) FROM CLIENTE")->fetchColumn() - 5,];
 ?>
 <!DOCTYPE html>
