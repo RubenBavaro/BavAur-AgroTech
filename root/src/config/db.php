@@ -2,8 +2,8 @@
 // ── Database connection ──────────────────────────────────────
 define('DB_HOST',    'db');
 define('DB_NAME',    'myapp_db');
-define('DB_USER',    'myuser');
-define('DB_PASS',    'mypassword');
+define('DB_USER',    'root');
+define('DB_PASS',    'rootpassword');
 define('DB_CHARSET', 'utf8mb4');
 
 try {
