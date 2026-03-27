@@ -40,8 +40,7 @@ define('PREZZO_FRESCO',   3.50);
 $stats = [
     'prodotti' => $pdo->query("SELECT COUNT(*) FROM PRODOTTO")->fetchColumn(),
     'sedi'     => $pdo->query("SELECT COUNT(*) FROM SEDE")->fetchColumn(),
-    'clienti'  => $pdo->query("SELECT COUNT(*) FROM CLIENTE")->fetchColumn(),
-];
+    'clienti' => $pdo->query("SELECT COUNT(*) FROM CLIENTE")->fetchColumn() - 5,];
 ?>
 <!DOCTYPE html>
 <html lang="it" data-theme="light">
