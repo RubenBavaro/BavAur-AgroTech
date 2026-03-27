@@ -166,7 +166,7 @@ $stats = [
           <?php foreach ([
             ['value'=>$stats['prodotti'],'label'=>'Prodotti','icon'=>'fa-seedling'],
             ['value'=>$stats['sedi'],    'label'=>'Sedi Operative','icon'=>'fa-location-dot'],
-            ['value'=>$stats['clienti'], 'label'=>'Clienti Attivi','icon'=>'fa-users'],
+            ['value'=>$stats['clienti'], 'label'=>'Clienti Registrati','icon'=>'fa-users'],
             ['value'=>'100%',            'label'=>'Naturale','icon'=>'fa-leaf'],
           ] as $hs): ?>
           <div style="background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:20px;text-align:center">
